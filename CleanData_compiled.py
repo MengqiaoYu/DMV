@@ -4,6 +4,7 @@ import random
 import os
 import datetime
 import pandas as pd
+import json
 
 def find_records(data, data_header, addr_set = '', name_set = '', vin_set = ''):
     """
@@ -104,7 +105,7 @@ def pick_random_addr(data_init, data_header, init_year, sample_size):
 def remove_commercial(data, data_header):
     commercial_name = ["SERVICE", "AUTOMOBILE", "MUTUAL", "INSURANCE", "COMPANY",
                        "INS CO", "L.P", "FINANCING", "ELECTRIC", "ENTERPRIS", "TRUST",
-                       "CORPORATION"]
+                       "CORPORATION", " INC"]
     index_to_delete = []
     for i, item in enumerate(data):
         if any(name in item[data_header.index('name')] for name in commercial_name):
@@ -185,7 +186,7 @@ def init_household_dict(data_init, year_init):
     addr_init_set = [list(x) for x in set(tuple(x) for x in addr_init)]
 
     household_dict_init = [None] * len(addr_init_set)
-    header_hh.extend(["addr_id"])
+
     for item in data_init:
         for i, addr in enumerate(addr_init_set):
             if item[header_hh.index('address')] == addr:
@@ -243,7 +244,7 @@ def calc_household_dict(data_curr, household_dict_prev, year_curr, num_household
                     # household_dict_curr[i]['vmt'].append(item[header.index('vmt')])
     print ('There are %d households in ' % len(household_dict_curr) + str(year_curr) + ' records.\n')
 
-    # Now combine the households in 2009 and 2008, if now exist in 2008, give a new household id.
+    # Now combine the households in 2009 and 2008, if not exist in 2008, give a new household id.
     # num_household_prev = len(household_dict_prev)
     for item_curr in household_dict_curr:
         name_curr = item_curr['name']
@@ -354,11 +355,23 @@ with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_rev
             id += 1
 print ("-------------------Load data over.------------------------\n")
 
+outdir_rawdata_name = '/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData'
+outfile_rawdata_name = 'data_raw_tot.json'
+print ("Saving the compact raw data to directory: %s" % outdir_rawdata_name)
+json_dump = json.dumps(data_raw_tot)
+f = open(os.path.join(outdir_rawdata_name, outfile_rawdata_name), 'w')
+f.write(json_dump)
+f.close()
+
+
 ### Pick sample and find records in the first year
+with open(os.path.join(outdir_rawdata_name, outfile_rawdata_name)) as json_file:
+    data_raw_tot_test = json.load(json_file)
+
 name_tot = {}
 addr_tot = {}
 vin_tot = {}
-num_sample = 200
+num_sample = 100
 print ("--------Now randomly pick %d addresses from %d...--------\n" % (num_sample, first_year) )
 addr_tot[first_year] = simplepick_random_addr(data_init=data_raw_tot[year_tot[0]],
                                               data_header=header_hh,
@@ -388,19 +401,23 @@ print ("----------Execute backward recovering algorithm...--------\n")
 name_new_tot = []
 vin_new_tot = []
 for year_curr in reversed(year_tot[1:]):
-    name_new_tot += list(set(name_tot[year_curr]) - set(name_tot[year_curr-1]))
-    vin_new_tot += list(set(vin_tot[year_curr]) - set(vin_tot[year_curr-1]))
-    data_new_curr = find_records(data = data_sample_tot[year_curr-1],
+    name_new_tot += set(name_tot[year_curr]) - set(name_tot[year_curr - 1])
+    print (len(name_new_tot))
+    name_new_find = list(set(name_new_tot) - set(name_tot[year_curr - 1]))
+    print (len(name_new_find))
+    vin_new_tot += set(vin_tot[year_curr]) - set(vin_tot[year_curr - 1])
+    vin_new_find = list(set(vin_new_tot) - set(vin_tot[year_curr - 1]))
+    data_new_curr = find_records(data = data_raw_tot[year_curr - 1],
                                  data_header = header_hh,
                                  addr_set = [],
-                                 name_set=name_new_tot,
-                                 vin_set=vin_new_tot)
+                                 name_set=name_new_find,
+                                 vin_set=vin_new_find)
     print (data_new_curr)
     print ("There are %d newly added records in %d." %(len(data_new_curr), year_curr-1))
     data_sample_tot[year_curr-1] += data_new_curr
 
 print ("---------------------Save the file...---------------------\n")
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/Sample_records_6year_sample1.csv', 'w') as f:
+with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/Sample_records_7year_sample0.csv', 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_hh)
     for y in year_tot:
@@ -422,7 +439,7 @@ for year_curr in year_tot[1:]:
 
 # Write household info to file
 outdir_name = '/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData'
-outfile_name = 'household_6years_sample1.csv'
+outfile_name = 'household_7years_sample0.csv'
 print ("Saving the household info to directory: %s" % outdir_name)
 with open(os.path.join(outdir_name, outfile_name), 'w') as f:
     dict_writer = csv.DictWriter(f, all_household_dicts[first_year][0].keys())
@@ -459,7 +476,7 @@ header_dmv_new = header_dmv + ['ID']
 
 ### Load the clustering results file
 bg_data = []
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/bg_att_all_labeled.csv', 'rU') as inputfile:
+with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/bg_att_all_labeled_test.csv', 'rU') as inputfile:
     for row in csv.reader(inputfile):
         bg_data.append(row)
 bg_header = bg_data[0]
@@ -481,7 +498,7 @@ print (" Load Data over. Now let's convert to ind dataset.")
 # TODO: add household vehicle portfolio
 hh_id = [int(item[-1]) for item in ind_dmv_records]
 ind_records = []
-header_ind = "name year vmt_tot veh_num vmt_avg cluster_id address gas_price ue_rate"
+header_ind = "name year vmt_tot veh_num vmt_avg geoid, cluster_id address gas_price ue_rate"
 header_ind = header_ind.split()
 for year, household_dict in all_household_dicts.items():
     for hh_curr in household_dict:
@@ -519,12 +536,12 @@ for year, household_dict in all_household_dicts.items():
             continue
         if len(hh_name_curr) == 1:
                 ind_records.append([hh_name_curr[0], year, hh_vmt_curr, float(hh_veh_num),
-                                    hh_vmt_curr / float(hh_veh_num), hh_cluster, hh_add,
+                                    hh_vmt_curr / float(hh_veh_num), hh_geoid, hh_cluster, hh_add,
                                     hh_gasPrice, hh_ueRate])
         else:
             for n in hh_name_curr:
                 ind_records.append([n, year, hh_vmt_curr, float(hh_veh_num),
-                                    hh_vmt_curr /float(hh_veh_num), hh_cluster, hh_add,
+                                    hh_vmt_curr / float(hh_veh_num), hh_geoid, hh_cluster, hh_add,
                                     hh_gasPrice, hh_ueRate])
 
 
@@ -544,10 +561,10 @@ for item in ind_records:
         result_for_model.append(item)
 
 
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/data_0617_6year_sample1.csv', 'w') as f:
+with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/data_0617_7year_sample0.csv', 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_ind)
     writer.writerows(result_for_model)
 # nearly 60% households are preserved.
 
-print ("---------------------THE END-------------------------------\n")
+print ("n ---------------------THE END-------------------------------\n")
