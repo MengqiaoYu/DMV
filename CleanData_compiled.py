@@ -4,7 +4,7 @@ import random
 import os
 import datetime
 import pandas as pd
-import json
+import logging
 
 def find_records(data, data_header, addr_set = '', name_set = '', vin_set = ''):
     """
@@ -81,7 +81,8 @@ def find_unique_addr(data, data_header):
     :return: all the unique address (combo of address and city)
     :rtype: list of lists
     """
-    return [list(x) for x in set(tuple(x[data_header.index('address')]) for x in data)]
+    # return [list(x) for x in set(tuple(x[data_header.index('address')]) for x in data)]
+    return list(set([item[data_header.index('address')] for item in data]))
 
 def pick_random_addr(data_init, data_header, init_year, sample_size):
     """
@@ -119,43 +120,28 @@ def simplepick_random_addr(data_init, data_header, sample_size):
     Random pick sample_size observations and return the unique addresses
     (save a lot of time compared with pick_random_addr)
     """
-    print ("Randomly pick %d addresses from the first year." % sample_size)
     data_sample = random.sample(data_init, sample_size)
     data_sample_filter = remove_commercial(data_sample, data_header)
     addr_sample_set = find_unique_addr(data_sample_filter, data_header)
-    print ("(Random pick over with %d unique addresses.)" % len(addr_sample_set))
+    logger.info("There are %d unique effective addresses in the first year." % len(addr_sample_set))
     return addr_sample_set
 
 def forward_track_hh(year, data_curr, header_curr, addr_prev, name_prev = '', vin_prev = ''):
     """
     if first year, track households for this year based on picked addresses;
     if other years, track households for this year based on previous year's addr, vin, and names.
-    :param year:
-    :type year: int
-    :param data:
-    :type data:
-    :param data_header:
-    :type data_header:
-    :param addr_prev:
-    :type addr_prev:
-    :param name_prev:
-    :type name_prev:
-    :param vin_prev:
-    :type vin_prev:
     :return: 4 items: all the records, name, add and vin info
     :rtype:
     """
     ### Find all the records, names in the picked sample_size addresses since the first year
 
-    print ("Find the records related with the %d households in %d ..." % (year - 1, year))
+    logger.info("Find the records related with the %d households in %d ..." % (year - 1, year))
     data_sample = find_records(data = data_curr, data_header = header_curr, addr_set = addr_prev, name_set=name_prev, vin_set=vin_prev)
     addr_sample = find_unique_addr(data_sample, header_curr)
     data_sample = find_records(data = data_curr, data_header = header_curr, addr_set = addr_sample, name_set='', vin_set='')
-    print ('There are %d records in these addresses(households) in %d.' % (len(data_sample), year))
-    print ("Find all the names and vins in the picked set...")
     name_sample = find_unique_name(data_sample, header_curr)
     vin_sample = find_unique_vin(data_sample, header_curr)
-    print ('There are %d households, %d names and %d vehicles in these households in %d.\n' \
+    logger.info('There are %d households, %d names and %d vehicles in these households in %d.\n' \
           % (len(addr_sample), len(name_sample), len(vin_sample), year))
 
     # print 'We can observe that there are %s individuals disappear in 2009, and %d individuals are added to these household in 2009.\n' 
@@ -166,24 +152,21 @@ def forward_track_hh(year, data_curr, header_curr, addr_prev, name_prev = '', vi
 def is_addr_intersection(set1, set2):
     """
     :param set1: address(es) in previous year
-    :type set1:
     :param set2: address(es) in previous year
-    :type set2:
     :return: The number of overlapping address(es)
     :rtype: integer
     """
-    set1 = set(tuple(x) for x in set1)
-    set2 = set(tuple(x) for x in set2)
+    set1 = set(set1)
+    set2 = set(set2)
     return len(set1 & set2)
 
 def init_household_dict(data_init, year_init):
     """
-
     :return: the household info for the first year. A household is defined based on one address in the first year.
     """
 
     addr_init = [item[header_hh.index('address')] for item in data_init]
-    addr_init_set = [list(x) for x in set(tuple(x) for x in addr_init)]
+    addr_init_set = list(set(addr_init))
 
     household_dict_init = [None] * len(addr_init_set)
 
@@ -205,7 +188,7 @@ def init_household_dict(data_init, year_init):
                     household_dict_init[i]['id'].append(item[header_hh.index('id')])
                     # household_dict_init[i]['vmt'].append(item[header.index('vmt')])
 
-    print ('There are %d households in ' % len(household_dict_init) + str(year_init) + ' records.\n')
+    logger.info('There are %d households in ' % len(household_dict_init) + str(year_init) + ' records.\n')
     return household_dict_init, len(household_dict_init) - 1
 
 def calc_household_dict(data_curr, household_dict_prev, year_curr, num_household_prev):
@@ -221,7 +204,7 @@ def calc_household_dict(data_curr, household_dict_prev, year_curr, num_household
     """
 
     addr_curr = [item[header_hh.index('address')] for item in data_curr]
-    addr_curr_set = [list(x) for x in set(tuple(x) for x in addr_curr)]
+    addr_curr_set = list(set(addr_curr))
     household_dict_curr = [None] * len(addr_curr_set)
 
     # First define all the households in 2009
@@ -242,7 +225,7 @@ def calc_household_dict(data_curr, household_dict_prev, year_curr, num_household
                     household_dict_curr[i]['vin'].append(item[header_hh.index('vin')])
                     household_dict_curr[i]['id'].append(item[header_hh.index('id')])
                     # household_dict_curr[i]['vmt'].append(item[header.index('vmt')])
-    print ('There are %d households in ' % len(household_dict_curr) + str(year_curr) + ' records.\n')
+    logger.info('There are %d households in ' % len(household_dict_curr) + str(year_curr) + ' records.\n')
 
     # Now combine the households in 2009 and 2008, if not exist in 2008, give a new household id.
     # num_household_prev = len(household_dict_prev)
@@ -252,7 +235,7 @@ def calc_household_dict(data_curr, household_dict_prev, year_curr, num_household
         vin_curr = item_curr['vin']
         for item_prev in household_dict_prev:
             if len(set(name_curr) & set(item_prev['name'])) != 0 \
-                and (is_addr_intersection(addr_curr, item_prev['address']) != 0
+                and (addr_curr == item_prev['address']
                 or len(set(vin_curr) & set(item_prev['vin'])) != 0):
                 item_curr['household_id'] += (str(item_prev['household_id']))
 
@@ -288,9 +271,12 @@ def find_avg_policy(date, datafile):
 
 ### Process header
 # header_dmv = "DATE ST_TIME	VIN	ODOMETER	VEHAGE	VMTCORR	PREVDATE	PREVODO	ODODIFF	DATEDIFF	VMT	VMT1000	VMT10002	VMTGRP	BADVMT	MY	MAK2	MM2	CG	VTYP	VTYP2	VTYP3	YEAR	VID_MY	VID_CYCLE	VID_COUNTY	PREPLTNO	REGPLTNO	REGEXPYR	REGEXPMO	OWNERNAME1	REG_MY	REG_ODO	REG_DATE	ADD_F	CITY_F	STATE_F	ZIP_F	REC_TYPE	COUNTYCODE	CENSUS_TRK	CENSUS_BLK	MONSBTWN2	MONTH	BLKGRP	ZIP5_F	DEN_ZIP	INC_ZIP	POP_ZIP	POP_BLK	INC_BLK	DEN_BLK"
+logger = logging.getLogger()
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
 header_dmv = "ADD_F BADVMT BLKGRP CENSUS_BLK CENSUS_TRK CG CITY_F COUNTYCODE DATEDIFF DEN_BLK DEN_ZIP INC_BLK INC_ZIP MAK2 MM2 MONSBTWN2 MONTH MY ODODIFF ODOMETER OWNERNAME1 POP_BLK POP_ZIP PREVDATE PREVODO REC_TYPE REG_DATE REG_MY REG_ODO REGEXPMO REGEXPYR REGPLTNO ST_TIME STATE_F VEHAGE VID_COUNTY VID_CYCLE VID_DATE VID_LICENSE VID_MY VIN VMT VMT1000 VMT10002 VMTCORR VMTGRP VTYP VTYP2 VTYP3 YEAR ZIP5_F"
 header_dmv = header_dmv.split()
-print ("The number of columns in the raw dataset is %d " % len(header_dmv))
+# print ("The number of columns in the raw dataset is %d " % len(header_dmv)) # 51
 header_hh = ['name', 'address', 'vin', 'id', 'year']
 
 ### Revise the dataset
@@ -314,28 +300,13 @@ header_hh = ['name', 'address', 'vin', 'id', 'year']
 year_tot = [2005, 2006, 2007, 2008, 2009, 2010, 2011]
 first_year = year_tot[0]
 data_raw_tot = {} # Store each dmv record only with 5 important variables.
-data_sample_tot = {} # Store dmv records related with 200 sample addresses with 5 important variables.
-all_household_dicts = {} # Store all hh records related with 200 sample addresses.
+
 
 ### Load data
-print ("Now load data based on year (only important columns are extracted)...")
+logger.info("Now load data based on year (only 5 important columns are extracted)...")
 for y in year_tot:
     data_raw_tot[y] = []
 id = 0
-### load dmv 2008-2010 dataset, uncomment this
-# with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy3.txt", 'rU', encoding = "ISO-8859-1") as inputfile:
-#     for row in csv.reader(inputfile, delimiter = '@'):
-#         try:
-#             data_raw_tot[int(row[header_dmv.index('YEAR')])].append([row[header_dmv.index('OWNERNAME1')],
-#                                                                  row[header_dmv.index('ADD_F'): header_dmv.index('STATE_F')],
-#                                                                  row[header_dmv.index('VIN')],
-#                                                                  id,
-#                                                                  row[header_dmv.index('YEAR')]])
-#             id += 1
-#         except Exception:
-#             print (row)
-#             id += 1
-# print ("-------------------Load data over.------------------------\n")
 
 with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_revised.txt", 'r', encoding = "ISO-8859-1") as inputfile:
     for row in csv.reader(inputfile, delimiter = '@'):
@@ -344,39 +315,28 @@ with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_rev
         try:
             data_raw_tot[int(row[header_dmv.index('YEAR')])].append([
                 row[header_dmv.index('OWNERNAME1')],
-                [row[header_dmv.index('ADD_F')], row[header_dmv.index('STATE_F')]],
-                row[header_dmv.index('VIN')],
+                hash(row[header_dmv.index('ADD_F')] + ' '+ row[header_dmv.index('CITY_F')]),
+                hash(row[header_dmv.index('VIN')]),
                 id,
                 row[header_dmv.index('YEAR')]
             ])
             id += 1
         except Exception:
-            print (row)
+            logger.debug(row)
             id += 1
-print ("-------------------Load data over.------------------------\n")
-
-outdir_rawdata_name = '/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData'
-outfile_rawdata_name = 'data_raw_tot.json'
-print ("Saving the compact raw data to directory: %s" % outdir_rawdata_name)
-json_dump = json.dumps(data_raw_tot)
-f = open(os.path.join(outdir_rawdata_name, outfile_rawdata_name), 'w')
-f.write(json_dump)
-f.close()
-
-
-### Pick sample and find records in the first year
-with open(os.path.join(outdir_rawdata_name, outfile_rawdata_name)) as json_file:
-    data_raw_tot_test = json.load(json_file)
+logger.info("Load data over. There are %d rows in formy4.txt.\n" %id)
 
 name_tot = {}
 addr_tot = {}
 vin_tot = {}
-num_sample = 100
-print ("--------Now randomly pick %d addresses from %d...--------\n" % (num_sample, first_year) )
+data_sample_tot = {} # Store dmv records related with 200 sample addresses with 5 important variables.
+all_household_dicts = {} # Store all hh records related with 200 sample addresses.
+num_sample = 2000
+logger.info("--------Now randomly pick %d addresses from %d...--------\n" % (num_sample, first_year) )
 addr_tot[first_year] = simplepick_random_addr(data_init=data_raw_tot[year_tot[0]],
                                               data_header=header_hh,
                                               sample_size=num_sample)
-print ("Extract info of these %d addresses..." %num_sample)
+logger.info("Extract info of these %d addresses..." %num_sample)
 data_sample_tot[first_year] = find_records(data = data_raw_tot[first_year],
                                            data_header = header_hh,
                                            addr_set = addr_tot[first_year],
@@ -384,12 +344,12 @@ data_sample_tot[first_year] = find_records(data = data_raw_tot[first_year],
                                            vin_set='')
 name_tot[first_year] = find_unique_name(data_sample_tot[first_year], header_hh)
 vin_tot[first_year] = find_unique_vin(data_sample_tot[first_year], header_hh)
-print ('There are %d records, %d names, %d vehicles in these %d households in %d.\n' \
+logger.info('There are %d records, %d names, %d vehicles in these %d households in %d.\n' \
       % (len(data_sample_tot[first_year]), len(name_tot[first_year]),
          len(vin_tot[first_year]), len(addr_tot[first_year]), first_year))
 
 ### Find records in the next few years
-print ("-----------Execute forward tracking algorithm...----------\n")
+logger.info("-----------Execute forward tracking algorithm...----------\n")
 for year_curr in year_tot[1:]:
     data_sample_tot[year_curr], name_tot[year_curr], addr_tot[year_curr], vin_tot[year_curr] = \
         forward_track_hh(year=year_curr, data_curr=data_raw_tot[year_curr], header_curr=header_hh,
@@ -397,14 +357,14 @@ for year_curr in year_tot[1:]:
 
 
 ### Recover all the records
-print ("----------Execute backward recovering algorithm...--------\n")
+logger.info("----------Execute backward recovering algorithm...--------\n")
 name_new_tot = []
 vin_new_tot = []
 for year_curr in reversed(year_tot[1:]):
     name_new_tot += set(name_tot[year_curr]) - set(name_tot[year_curr - 1])
-    print (len(name_new_tot))
+    logger.debug(len(name_new_tot))
     name_new_find = list(set(name_new_tot) - set(name_tot[year_curr - 1]))
-    print (len(name_new_find))
+    logger.debug(len(name_new_find))
     vin_new_tot += set(vin_tot[year_curr]) - set(vin_tot[year_curr - 1])
     vin_new_find = list(set(vin_new_tot) - set(vin_tot[year_curr - 1]))
     data_new_curr = find_records(data = data_raw_tot[year_curr - 1],
@@ -412,12 +372,13 @@ for year_curr in reversed(year_tot[1:]):
                                  addr_set = [],
                                  name_set=name_new_find,
                                  vin_set=vin_new_find)
-    print (data_new_curr)
-    print ("There are %d newly added records in %d." %(len(data_new_curr), year_curr-1))
+    # print (data_new_curr)
+    logger.info("There are %d newly added records in %d." %(len(data_new_curr), year_curr-1))
     data_sample_tot[year_curr-1] += data_new_curr
 
-print ("---------------------Save the file...---------------------\n")
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/Sample_records_7year_sample0.csv', 'w') as f:
+data_raw_tot = [] # to save memory
+logger.info("Save the sample records.\n")
+with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/Sample_records_7year_sample7.csv', 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_hh)
     for y in year_tot:
@@ -425,13 +386,13 @@ with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/Sample_rec
 
 
 ### Give household id to all the records in the first year
-print ("-----------Now let's build household dataset.-----------")
-print ("Now let's initialize household id to records in the first year (%d)...\n" % first_year)
+logger.info("-----------Now let's build household dataset.-----------")
+logger.info("Now let's initialize household id to records in the first year (%d)...\n" % first_year)
 all_household_dicts[first_year], household_last_id = init_household_dict(data_sample_tot[first_year], first_year)
 
 ### Give household id to all the records in the next few years.
 for year_curr in year_tot[1:]:
-    print ("Now let's allocate household id to records in %d...\n" % y)
+    logger.debug("Now let's allocate household id to records in %d...\n" % year_curr)
     all_household_dicts[year_curr], household_last_id = calc_household_dict(data_sample_tot[year_curr],
                                                                             all_household_dicts[year_curr - 1],
                                                                             year_curr,
@@ -439,8 +400,8 @@ for year_curr in year_tot[1:]:
 
 # Write household info to file
 outdir_name = '/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData'
-outfile_name = 'household_7years_sample0.csv'
-print ("Saving the household info to directory: %s" % outdir_name)
+outfile_name = 'household_7years_sample7.csv'
+logger.info("Saving the household info to directory: %s" % outdir_name)
 with open(os.path.join(outdir_name, outfile_name), 'w') as f:
     dict_writer = csv.DictWriter(f, all_household_dicts[first_year][0].keys())
     dict_writer.writeheader()
@@ -451,32 +412,37 @@ with open(os.path.join(outdir_name, outfile_name), 'w') as f:
 ###--------- Convert into individual database----------------###
 
 ### Find all the records in the dmv database
-print ("-----------Now let's build individual dataset.-----------")
-print ("--------------Load all useful datasets-------------------\n")
+logger.info("-----------Now let's build individual dataset.-----------")
+logger.info("Load all useful datasets\n")
 hh_index_in_rawdata = []
 ind_dmv_records = []
 
 for year, household_dict in all_household_dicts.items():
     for item in household_dict:
         hh_index_in_rawdata.extend(item['id'])
-i = 0
-count = 0
-with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_revised.txt", 'r', encoding = "ISO-8859-1") as inputfile:
-    for row in csv.reader(inputfile, delimiter = '@'):
-        if i in hh_index_in_rawdata:
 
-            row.append(str(i))
-            ind_dmv_records.append(row)
-            # if i == 2227:
-            #     print row[-5:]
-            #     break
-            count += 1
-        i += 1
-header_dmv_new = header_dmv + ['ID']
+# i = 0
+# with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_revised.txt", 'r', encoding = "ISO-8859-1") as inputfile:
+#     for row in csv.reader(inputfile, delimiter = '@'):
+#         if i in hh_index_in_rawdata:
+#             row.append(str(i))
+#             ind_dmv_records.append(row)
+#         i += 1
+# header_dmv_new = header_dmv + ['ID']
+
+### Speed up the I/O process
+skip_id = list(set(range(id)) - set(hh_index_in_rawdata))
+
+ind_dmv_records = pd.read_csv('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_revised.txt', sep="@", header=None, skiprows = skip_id)
+ind_dmv_records.columns = header_dmv
+ind_dmv_records['ID'] = sorted(hh_index_in_rawdata)
+logger.debug(ind_dmv_records.head())
+ind_dmv_records = ind_dmv_records.values
+
 
 ### Load the clustering results file
 bg_data = []
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/bg_att_all_labeled_test.csv', 'rU') as inputfile:
+with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/bg_att_all_labeled_0715.csv', 'rU') as inputfile:
     for row in csv.reader(inputfile):
         bg_data.append(row)
 bg_header = bg_data[0]
@@ -490,15 +456,16 @@ gp_data = df_gp.values
 ### Load unemployment rate file
 df_ue = pd.read_csv('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/UE_test.csv', dtype = float)
 ue_data = df_ue.values
-# print find_avg_policy(['05/14/2009'], ue_data)
+# find_avg_policy(['05/14/2009'], ue_data)
 
-print (" Load Data over. Now let's convert to ind dataset.")
+logger.info(" Load Data over. Now let's convert to ind dataset.")
+
 ### Change to ind dataset
 # TODO: add fuel efficiency for each vin
 # TODO: add household vehicle portfolio
 hh_id = [int(item[-1]) for item in ind_dmv_records]
 ind_records = []
-header_ind = "name year vmt_tot veh_num vmt_avg geoid, cluster_id address gas_price ue_rate"
+header_ind = "name year vmt_tot veh_num vmt_avg geoid cluster_id address gas_price ue_rate_scaled vin"
 header_ind = header_ind.split()
 for year, household_dict in all_household_dicts.items():
     for hh_curr in household_dict:
@@ -519,15 +486,17 @@ for year, household_dict in all_household_dicts.items():
                 hh_veh_num += 1
 
             # Yield location cluster. If cannot find a corresponding cluster, label NaN
-            hh_add = dmv_record[header_dmv.index('ADD_F'): header_dmv.index('STATE_F')]
+            hh_add = [dmv_record[header_dmv.index('ADD_F')], dmv_record[header_dmv.index('CITY_F')]]
             hh_geoid = extract_geoid(dmv_record, header_dmv)
+
             try:
                 hh_cluster = bg_data[bg_geoid.index(hh_geoid)][bg_header.index("cluster_label")].strip('[]')
             except Exception:
+                logger.debug(hh_geoid)
                 hh_cluster = 'NaN'
 
         # Yield a list of inspection time for all the vehs in the hh
-        hh_date.append(dmv_record[header_dmv.index('MONTH')] + '/' + dmv_record[header_dmv.index('YEAR')])
+        hh_date.append(str(dmv_record[header_dmv.index('MONTH')]) + '/' + str(dmv_record[header_dmv.index('YEAR')]))
         hh_gasPrice = find_avg_policy(hh_date, gp_data)
         hh_ueRate = find_avg_policy(hh_date, ue_data)
 
@@ -537,12 +506,12 @@ for year, household_dict in all_household_dicts.items():
         if len(hh_name_curr) == 1:
                 ind_records.append([hh_name_curr[0], year, hh_vmt_curr, float(hh_veh_num),
                                     hh_vmt_curr / float(hh_veh_num), hh_geoid, hh_cluster, hh_add,
-                                    hh_gasPrice, hh_ueRate])
+                                    hh_gasPrice, hh_ueRate * 100, hh_curr['vin']])
         else:
             for n in hh_name_curr:
                 ind_records.append([n, year, hh_vmt_curr, float(hh_veh_num),
                                     hh_vmt_curr / float(hh_veh_num), hh_geoid, hh_cluster, hh_add,
-                                    hh_gasPrice, hh_ueRate])
+                                    hh_gasPrice, hh_ueRate * 100, hh_curr['vin']])
 
 
 ### Delete bad records
@@ -561,10 +530,10 @@ for item in ind_records:
         result_for_model.append(item)
 
 
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/data_0617_7year_sample0.csv', 'w') as f:
+with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/data_0617_7year_sample7.csv', 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_ind)
     writer.writerows(result_for_model)
 # nearly 60% households are preserved.
 
-print ("n ---------------------THE END-------------------------------\n")
+logger.info("---------------------THE END-------------------------------\n")
