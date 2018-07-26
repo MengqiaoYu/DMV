@@ -6,7 +6,8 @@ import datetime
 import pandas as pd
 import logging
 
-DATA_DIR = os.path.abspath(os.path.dirname(__file__))
+# DATA_DIR = os.path.abspath(os.path.dirname(__file__))
+DATA_DIR = '/Users/MengqiaoYu/Desktop/Research_firstApproach'
 
 def find_records(data, data_header, addr_set = '', name_set = '', vin_set = ''):
     """
@@ -287,15 +288,15 @@ def find_avg_policy(date, datafile):
 
 def is_efficient(mpg, vtype):
     if vtype == 1 or vtype == 2:
-        if mpg >= 28:
+        if mpg >= 26:
             return True
         return False
     if vtype == 3 or vtype == 4 or vtype == 5:
-        if mpg >= 24:
+        if mpg >= 23:
             return True
         return False
     if vtype >= 6 and vtype <= 8:
-        if mpg >= 21:
+        if mpg >= 20:
             return True
         return False
     return False
@@ -443,7 +444,6 @@ with open(os.path.join(outdir_name, outfile_name), 'w') as f:
 
 ### Find all the records in the dmv database
 
-DATA_DIR = '/Users/MengqiaoYu/Desktop/Research_firstApproach'
 logger.info("-----------Now let's build individual dataset.------------")
 hh_index_in_rawdata = []
 ind_dmv_records = []
@@ -474,7 +474,7 @@ ind_dmv_records = ind_dmv_records.values
 ### Load the clustering results file
 logger.info("Load clustering result dataset.")
 bg_data = []
-with open(os.path.join(DATA_DIR, 'HMM/bg_att_all_labeled_0715.csv'), 'rU') as inputfile:
+with open(os.path.join(DATA_DIR, 'HMM/bg_att_all_labeled_0715.csv'), 'r') as inputfile:
     for row in csv.reader(inputfile):
         bg_data.append(row)
 bg_header = bg_data[0]
@@ -545,7 +545,7 @@ for year, household_dict in all_household_dicts.items():
                 break
 
             # Find car type:
-            vtype_curr = dmv_record[header_dmv.index('VTYP')]
+            vtype_curr = int(dmv_record[header_dmv.index('VTYP')])
 
             # Yield location cluster. If cannot find a corresponding cluster, label NaN
             hh_add = [dmv_record[header_dmv.index('ADD_F')], dmv_record[header_dmv.index('CITY_F')]]
@@ -566,7 +566,7 @@ for year, household_dict in all_household_dicts.items():
             hh_fe_curr.append(is_efficient(mpg_curr, vtype_curr))
 
         # Don't save those hh with NaNs
-        if hh_vmt_curr <= 1000 or hh_cluster == 'NaN' \
+        if sum(hh_vmt_curr) <= 1000 or hh_cluster == 'NaN' \
                 or hh_mpg_curr == 'NaN' or hh_name_curr == 'NaN':
             continue
 
@@ -579,7 +579,7 @@ for year, household_dict in all_household_dicts.items():
         hh_fe_score = sum([hh_vmt_curr[i] for i, item in enumerate(hh_fe_curr) if item]) / sum(hh_vmt_curr)
         if hh_fe_score >= 0.7:
             hh_fe = 'E'
-        elif hh_fe_score >= 0.35:
+        elif hh_fe_score >= 0.3:
             hh_fe = 'N'
         else:
             hh_fe = 'I'
@@ -617,7 +617,7 @@ for item in ind_records:
         result_for_model.append(item)
 
 
-with open(os.path.join(DATA_DIR, 'HMM/data_0617_7year_sample8.csv'), 'w') as f:
+with open(os.path.join(DATA_DIR, 'HMM/data_0617_7year_sample9.csv'), 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_ind)
     writer.writerows(result_for_model)
