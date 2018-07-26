@@ -6,6 +6,8 @@ import datetime
 import pandas as pd
 import logging
 
+DATA_DIR = os.path.abspath(os.path.dirname(__file__))
+
 def find_records(data, data_header, addr_set = '', name_set = '', vin_set = ''):
     """
 
@@ -104,6 +106,10 @@ def pick_random_addr(data_init, data_header, init_year, sample_size):
     return addr_init_sample
 
 def remove_commercial(data, data_header):
+    """
+    use this function if want to remove commercial names in the inital sample process.
+    conflict with hash.
+    """
     commercial_name = ["SERVICE", "AUTOMOBILE", "MUTUAL", "INSURANCE", "COMPANY",
                        "INS CO", "L.P", "FINANCING", "ELECTRIC", "ENTERPRIS", "TRUST",
                        "CORPORATION", " INC"]
@@ -115,14 +121,25 @@ def remove_commercial(data, data_header):
         del data[i]
     return data
 
+def is_commercial(ownername):
+    """
+    use this function if remove commercial names at the end (reverse hash process)
+    """
+    commercial_name = ["SERVICE", "AUTOMOBILE", "MUTUAL", "INSURANCE", "COMPANY",
+                       "INS CO", "L.P", "FINANCING", "ELECTRIC", "ENTERPRIS", "TRUST",
+                       "CORPORATION", " INC"]
+    if any(name in ownername for name in commercial_name):
+        return True
+    return False
+
 def simplepick_random_addr(data_init, data_header, sample_size):
     """
     Random pick sample_size observations and return the unique addresses
     (save a lot of time compared with pick_random_addr)
     """
     data_sample = random.sample(data_init, sample_size)
-    data_sample_filter = remove_commercial(data_sample, data_header)
-    addr_sample_set = find_unique_addr(data_sample_filter, data_header)
+    # data_sample_filter = remove_commercial(data_sample, data_header)
+    addr_sample_set = find_unique_addr(data_sample, data_header)
     logger.info("There are %d unique effective addresses in the first year." % len(addr_sample_set))
     return addr_sample_set
 
@@ -268,14 +285,27 @@ def find_avg_policy(date, datafile):
         policy_value.extend(datafile[index_datafile - 12 : index_datafile])
     return np.average(policy_value)
 
+def is_efficient(mpg, vtype):
+    if vtype == 1 or vtype == 2:
+        if mpg >= 28:
+            return True
+        return False
+    if vtype == 3 or vtype == 4 or vtype == 5:
+        if mpg >= 24:
+            return True
+        return False
+    if vtype >= 6 and vtype <= 8:
+        if mpg >= 21:
+            return True
+        return False
+    return False
 
 ### Process header
 # header_dmv = "DATE ST_TIME	VIN	ODOMETER	VEHAGE	VMTCORR	PREVDATE	PREVODO	ODODIFF	DATEDIFF	VMT	VMT1000	VMT10002	VMTGRP	BADVMT	MY	MAK2	MM2	CG	VTYP	VTYP2	VTYP3	YEAR	VID_MY	VID_CYCLE	VID_COUNTY	PREPLTNO	REGPLTNO	REGEXPYR	REGEXPMO	OWNERNAME1	REG_MY	REG_ODO	REG_DATE	ADD_F	CITY_F	STATE_F	ZIP_F	REC_TYPE	COUNTYCODE	CENSUS_TRK	CENSUS_BLK	MONSBTWN2	MONTH	BLKGRP	ZIP5_F	DEN_ZIP	INC_ZIP	POP_ZIP	POP_BLK	INC_BLK	DEN_BLK"
 logger = logging.getLogger()
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
 
-header_dmv = "ADD_F BADVMT BLKGRP CENSUS_BLK CENSUS_TRK CG CITY_F COUNTYCODE DATEDIFF DEN_BLK DEN_ZIP INC_BLK INC_ZIP MAK2 MM2 MONSBTWN2 MONTH MY ODODIFF ODOMETER OWNERNAME1 POP_BLK POP_ZIP PREVDATE PREVODO REC_TYPE REG_DATE REG_MY REG_ODO REGEXPMO REGEXPYR REGPLTNO ST_TIME STATE_F VEHAGE VID_COUNTY VID_CYCLE VID_DATE VID_LICENSE VID_MY VIN VMT VMT1000 VMT10002 VMTCORR VMTGRP VTYP VTYP2 VTYP3 YEAR ZIP5_F"
-header_dmv = header_dmv.split()
+header_dmv = "ADD_F BADVMT BLKGRP CENSUS_BLK CENSUS_TRK CG CITY_F COUNTYCODE DATEDIFF DEN_BLK DEN_ZIP INC_BLK INC_ZIP MAK2 MM2 MONSBTWN2 MONTH MY ODODIFF ODOMETER OWNERNAME1 POP_BLK POP_ZIP PREVDATE PREVODO REC_TYPE REG_DATE REG_MY REG_ODO REGEXPMO REGEXPYR REGPLTNO ST_TIME STATE_F VEHAGE VID_COUNTY VID_CYCLE VID_DATE VID_LICENSE VID_MY VIN VMT VMT1000 VMT10002 VMTCORR VMTGRP VTYP VTYP2 VTYP3 YEAR ZIP5_F".split()
 # print ("The number of columns in the raw dataset is %d " % len(header_dmv)) # 51
 header_hh = ['name', 'address', 'vin', 'id', 'year']
 
@@ -308,13 +338,13 @@ for y in year_tot:
     data_raw_tot[y] = []
 id = 0
 
-with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_revised.txt", 'r', encoding = "ISO-8859-1") as inputfile:
+with open(os.path.join(DATA_DIR, "CleanData/formy4_revised.txt"), 'r', encoding = "ISO-8859-1") as inputfile:
     for row in csv.reader(inputfile, delimiter = '@'):
         if len(row) == 1:
             row = row[0]
         try:
             data_raw_tot[int(row[header_dmv.index('YEAR')])].append([
-                row[header_dmv.index('OWNERNAME1')],
+                hash(row[header_dmv.index('OWNERNAME1')]),
                 hash(row[header_dmv.index('ADD_F')] + ' '+ row[header_dmv.index('CITY_F')]),
                 hash(row[header_dmv.index('VIN')]),
                 id,
@@ -331,7 +361,7 @@ addr_tot = {}
 vin_tot = {}
 data_sample_tot = {} # Store dmv records related with 200 sample addresses with 5 important variables.
 all_household_dicts = {} # Store all hh records related with 200 sample addresses.
-num_sample = 150
+num_sample = 50
 logger.info("--------Now randomly pick %d addresses from %d...--------\n" % (num_sample, first_year) )
 addr_tot[first_year] = simplepick_random_addr(data_init=data_raw_tot[year_tot[0]],
                                               data_header=header_hh,
@@ -378,7 +408,7 @@ for year_curr in reversed(year_tot[1:]):
 
 data_raw_tot = [] # to save memory
 logger.info("Save the sample records.\n")
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/Sample_records_7year_sample8.csv', 'w') as f:
+with open(os.path.join(DATA_DIR, 'CleanData/Sample_records_7year_sample8.csv'), 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_hh)
     for y in year_tot:
@@ -399,7 +429,7 @@ for year_curr in year_tot[1:]:
                                                                             household_last_id)
 
 # Write household info to file
-outdir_name = '/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData'
+outdir_name = os.path.join(DATA_DIR, 'CleanData')
 outfile_name = 'household_7years_sample8.csv'
 logger.info("Saving the household info to directory: %s" % outdir_name)
 with open(os.path.join(outdir_name, outfile_name), 'w') as f:
@@ -412,8 +442,9 @@ with open(os.path.join(outdir_name, outfile_name), 'w') as f:
 ###--------- Convert into individual database----------------###
 
 ### Find all the records in the dmv database
+
+DATA_DIR = '/Users/MengqiaoYu/Desktop/Research_firstApproach'
 logger.info("-----------Now let's build individual dataset.------------")
-logger.info("Load all useful datasets\n")
 hh_index_in_rawdata = []
 ind_dmv_records = []
 
@@ -431,9 +462,9 @@ for year, household_dict in all_household_dicts.items():
 # header_dmv_new = header_dmv + ['ID']
 
 ### Speed up the I/O process
+logger.info("Load dmv dataset.")
 skip_id = list(set(range(id)) - set(hh_index_in_rawdata))
-
-ind_dmv_records = pd.read_csv('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/formy4_revised.txt', sep="@", header=None, skiprows = skip_id)
+ind_dmv_records = pd.read_csv(os.path.join(DATA_DIR, 'CleanData/formy4_revised.txt'), sep="@", header=None, skiprows = skip_id)
 ind_dmv_records.columns = header_dmv
 ind_dmv_records['ID'] = sorted(hh_index_in_rawdata)
 logger.debug(ind_dmv_records.head())
@@ -441,8 +472,9 @@ ind_dmv_records = ind_dmv_records.values
 
 
 ### Load the clustering results file
+logger.info("Load clustering result dataset.")
 bg_data = []
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/bg_att_all_labeled_0715.csv', 'rU') as inputfile:
+with open(os.path.join(DATA_DIR, 'HMM/bg_att_all_labeled_0715.csv'), 'rU') as inputfile:
     for row in csv.reader(inputfile):
         bg_data.append(row)
 bg_header = bg_data[0]
@@ -450,11 +482,13 @@ bg_data = bg_data[1:]
 bg_geoid = [item[bg_header.index('GEOID10')] for i, item in enumerate(bg_data)]
 
 ### Load the gas price file
-df_gp = pd.read_csv('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/GP_test.csv', dtype = float)
+logger.info("Load gas price dataset.")
+df_gp = pd.read_csv(os.path.join(DATA_DIR, 'HMM/GP_test.csv'), dtype = float)
 gp_data = df_gp.values
 
 ### Load unemployment rate file
-df_ue = pd.read_csv('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/UE_test.csv', dtype = float)
+logger.info("Load unemployment rate dataset.")
+df_ue = pd.read_csv(os.path.join(DATA_DIR, 'HMM/UE_test.csv'), dtype = float)
 ue_data = df_ue.values
 
 ### Load VIN decoder
@@ -466,49 +500,52 @@ ue_data = df_ue.values
 # with open("/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/myvindecode.txt", 'r') as inputfile:
 #     for row in csv.reader(inputfile, delimiter = ','):
 #         writer.writerow([row[header_decoder.index('VIN')], row[header_decoder.index('COMB08_EPA')]])
-df_decoder = pd.read_csv('/Users/MengqiaoYu/Desktop/Research_firstApproach/CleanData/myvindecode_revised.txt', header=None)
+logger.info("Load mpg dataset.")
+df_decoder = pd.read_csv(os.path.join(DATA_DIR, 'CleanData/myvindecode_revised.txt'), header=None)
 decoder_data = {item[0]: item[1] for item in df_decoder.values}
 
 ### Change to ind dataset
 logger.info(" Load Data over. Now let's convert to ind dataset.")
-# TODO: add household vehicle portfolio
 hh_id = [int(item[-1]) for item in ind_dmv_records]
 ind_records = []
-header_ind = "name year vmt_tot veh_num vmt_avg geoid cluster_id address gas_price ue_rate_scaled vin mpg"
+header_ind = "name year vmt veh_num veh_fleet vmt_avg geoid cluster_id address gas_price ue_rate_scaled vin mpg fe_score fe"
 header_ind = header_ind.split()
 for year, household_dict in all_household_dicts.items():
     for hh_curr in household_dict:
         hh_veh_num = 0
-        # hh_name_curr = list(set(hh_curr['name']))
         hh_name_curr = []
         hh_vin_curr = []
-        hh_vmt_curr = 0
+        hh_vmt_curr = []
         hh_date = []
         hh_mpg_curr = []
+        hh_fe_curr = []
+
         for i in hh_curr['id']:
             dmv_record = ind_dmv_records[hh_id.index(i)]
 
-            # Reverse hash name, vin
-            hh_name_curr.append(dmv_record[header_dmv.index('OWNERNAME1')])
+            # Reverse hash name and check commercial names
+            if is_commercial(dmv_record[header_dmv.index('OWNERNAME1')]):
+                hh_name_curr = 'NaN'
+                break
+
+            # Yield total VMT and num of vehs in hh. If one bad VMT, label NaN
+            vmt_curr = dmv_record[header_dmv.index('VMT')]
+            if vmt_curr == '.' or float(vmt_curr) <= 0:
+                continue
+
+            # Reverse VIN
             vin_curr = dmv_record[header_dmv.index('VIN')]
-            hh_vin_curr.append(vin_curr)
 
             # Find mpg for each vin
             try:
-                hh_mpg_curr.append(int(decoder_data[vin_curr]))
+                mpg_curr = int(decoder_data[vin_curr])
             except Exception:
                 logger.debug("Cannot find mpg for vehicle %s" %vin_curr)
                 hh_mpg_curr = 'NaN'
                 break
 
-            # Yield total VMT and num of vehs in hh. If one bad VMT, label NaN
-            if dmv_record[header_dmv.index('VMT')] == '.' or \
-                            dmv_record[header_dmv.index('VMT')] == '.' or \
-                            float(dmv_record[header_dmv.index('VMT')]) <= 0:
-                hh_vmt_curr += 0
-            else:
-                hh_vmt_curr += float(dmv_record[header_dmv.index('VMT')])
-                hh_veh_num += 1
+            # Find car type:
+            vtype_curr = dmv_record[header_dmv.index('VTYP')]
 
             # Yield location cluster. If cannot find a corresponding cluster, label NaN
             hh_add = [dmv_record[header_dmv.index('ADD_F')], dmv_record[header_dmv.index('CITY_F')]]
@@ -520,25 +557,50 @@ for year, household_dict in all_household_dicts.items():
                 hh_cluster = 'NaN'
                 break
 
-        # Yield a list of inspection time for all the vehs in the hh
+            # Now append effective data
+            hh_name_curr.append(dmv_record[header_dmv.index('OWNERNAME1')])
+            hh_vmt_curr.append(float(vmt_curr))
+            hh_veh_num += 1
+            hh_vin_curr.append(vin_curr)
+            hh_mpg_curr.append(mpg_curr)
+            hh_fe_curr.append(is_efficient(mpg_curr, vtype_curr))
+
+        # Don't save those hh with NaNs
+        if hh_vmt_curr <= 1000 or hh_cluster == 'NaN' \
+                or hh_mpg_curr == 'NaN' or hh_name_curr == 'NaN':
+            continue
+
+        # Add policies
         hh_date.append(str(dmv_record[header_dmv.index('MONTH')]) + '/' + str(dmv_record[header_dmv.index('YEAR')]))
         hh_gasPrice = find_avg_policy(hh_date, gp_data)
         hh_ueRate = find_avg_policy(hh_date, ue_data)
 
+        # Add hh fuel efficiency: 1: fuel efficient; 0-1: neutral; 0: fuel inefficient
+        hh_fe_score = sum([hh_vmt_curr[i] for i, item in enumerate(hh_fe_curr) if item]) / sum(hh_vmt_curr)
+        if hh_fe_score >= 0.7:
+            hh_fe = 'E'
+        elif hh_fe_score >= 0.35:
+            hh_fe = 'N'
+        else:
+            hh_fe = 'I'
+
+        # Add hh vehicle fleet:
+        if hh_veh_num <= 2:
+            hh_fleet = hh_veh_num
+        else:
+            hh_fleet = 3
+
         # Save the data
         hh_name_curr = list(set(hh_name_curr))
-        if hh_vmt_curr <= 1000 or hh_cluster == 'NaN' or hh_mpg_curr == 'NaN':
-            continue
         if len(hh_name_curr) == 1:
-                ind_records.append([hh_name_curr[0], year, hh_vmt_curr, float(hh_veh_num),
-                                    hh_vmt_curr / float(hh_veh_num), hh_geoid, hh_cluster, hh_add,
-                                    hh_gasPrice, hh_ueRate * 100, hh_vin_curr, hh_mpg_curr])
+                ind_records.append([hh_name_curr[0], year, hh_vmt_curr, hh_veh_num, hh_fleet,
+                                    sum(hh_vmt_curr) / hh_veh_num, hh_geoid, hh_cluster, hh_add,
+                                    hh_gasPrice, hh_ueRate * 100, hh_vin_curr, hh_mpg_curr, hh_fe_score, hh_fe])
         else:
             for n in hh_name_curr:
-                ind_records.append([n, year, hh_vmt_curr, float(hh_veh_num),
-                                    hh_vmt_curr / float(hh_veh_num), hh_geoid, hh_cluster, hh_add,
-                                    hh_gasPrice, hh_ueRate * 100, hh_vin_curr, hh_mpg_curr])
-
+                ind_records.append([n, year, hh_vmt_curr, hh_veh_num, hh_fleet,
+                                    sum(hh_vmt_curr) / hh_veh_num, hh_geoid, hh_cluster, hh_add,
+                                    hh_gasPrice, hh_ueRate * 100, hh_vin_curr, hh_mpg_curr, hh_fe_score, hh_fe])
 
 #### Delete bad records
 # index_to_delete = []
@@ -555,7 +617,7 @@ for item in ind_records:
         result_for_model.append(item)
 
 
-with open('/Users/MengqiaoYu/Desktop/Research_firstApproach/HMM/data_0617_7year_sample8.csv', 'w') as f:
+with open(os.path.join(DATA_DIR, 'HMM/data_0617_7year_sample8.csv'), 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_ind)
     writer.writerows(result_for_model)
