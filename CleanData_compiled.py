@@ -6,7 +6,9 @@ import datetime
 import pandas as pd
 import logging
 
-# DATA_DIR = os.path.abspath(os.path.dirname(__file__))
+## if run in bash, move this out of folder
+#DATA_DIR = os.path.abspath(os.path.dirname(__file__))
+# if in python console
 DATA_DIR = '/Users/MengqiaoYu/Desktop/Research_firstApproach'
 
 def find_records(data, data_header, addr_set = '', name_set = '', vin_set = ''):
@@ -362,7 +364,7 @@ addr_tot = {}
 vin_tot = {}
 data_sample_tot = {} # Store dmv records related with 200 sample addresses with 5 important variables.
 all_household_dicts = {} # Store all hh records related with 200 sample addresses.
-num_sample = 50
+num_sample = 1000
 logger.info("--------Now randomly pick %d addresses from %d...--------\n" % (num_sample, first_year) )
 addr_tot[first_year] = simplepick_random_addr(data_init=data_raw_tot[year_tot[0]],
                                               data_header=header_hh,
@@ -386,7 +388,6 @@ for year_curr in year_tot[1:]:
         forward_track_hh(year=year_curr, data_curr=data_raw_tot[year_curr], header_curr=header_hh,
                          addr_prev=addr_tot[year_curr-1], name_prev=name_tot[year_curr-1], vin_prev=vin_tot[year_curr-1])
 
-
 ### Recover all the records
 logger.info("----------Execute backward recovering algorithm...--------")
 name_new_tot = []
@@ -408,12 +409,12 @@ for year_curr in reversed(year_tot[1:]):
     data_sample_tot[year_curr-1] += data_new_curr
 
 data_raw_tot = [] # to save memory
-logger.info("Save the sample records.\n")
-with open(os.path.join(DATA_DIR, 'CleanData/Sample_records_7year_sample8.csv'), 'w') as f:
-    writer = csv.writer(f)
-    writer.writerow(header_hh)
-    for y in year_tot:
-        writer.writerows(data_sample_tot[y])
+# logger.info("Save the sample records.\n")
+# with open(os.path.join(DATA_DIR, 'CleanData/Sample_records_7year_sample8.csv'), 'w') as f:
+#     writer = csv.writer(f)
+#     writer.writerow(header_hh)
+#     for y in year_tot:
+#         writer.writerows(data_sample_tot[y])
 
 
 ### Give household id to all the records in the first year
@@ -429,16 +430,15 @@ for year_curr in year_tot[1:]:
                                                                             year_curr,
                                                                             household_last_id)
 
-# Write household info to file
-outdir_name = os.path.join(DATA_DIR, 'CleanData')
-outfile_name = 'household_7years_sample8.csv'
-logger.info("Saving the household info to directory: %s" % outdir_name)
-with open(os.path.join(outdir_name, outfile_name), 'w') as f:
-    dict_writer = csv.DictWriter(f, all_household_dicts[first_year][0].keys())
-    dict_writer.writeheader()
-    for year, household_dict in all_household_dicts.items():
-        dict_writer.writerows(household_dict)
-
+# # Write household info to file
+# outdir_name = os.path.join(DATA_DIR, 'CleanData')
+# outfile_name = 'household_7years_sample8.csv'
+# logger.info("Saving the household info to directory: %s" % outdir_name)
+# with open(os.path.join(outdir_name, outfile_name), 'w') as f:
+#     dict_writer = csv.DictWriter(f, all_household_dicts[first_year][0].keys())
+#     dict_writer.writeheader()
+#     for year, household_dict in all_household_dicts.items():
+#         dict_writer.writerows(household_dict)
 
 ###--------- Convert into individual database----------------###
 
@@ -617,10 +617,9 @@ for item in ind_records:
         result_for_model.append(item)
 
 
-with open(os.path.join(DATA_DIR, 'HMM/data_0617_7year_sample9.csv'), 'w') as f:
+with open(os.path.join(DATA_DIR, 'HMM/data_7year_' + datetime.datetime.now().strftime('%Y%m%d%H%M%S')+'.csv'), 'w') as f:
     writer = csv.writer(f)
     writer.writerow(header_ind)
     writer.writerows(result_for_model)
-# nearly 60% households are preserved.
 
 logger.info("---------------------THE END-------------------------------")
