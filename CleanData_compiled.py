@@ -306,7 +306,7 @@ def is_efficient(mpg, vtype):
 ### Process header
 # header_dmv = "DATE ST_TIME	VIN	ODOMETER	VEHAGE	VMTCORR	PREVDATE	PREVODO	ODODIFF	DATEDIFF	VMT	VMT1000	VMT10002	VMTGRP	BADVMT	MY	MAK2	MM2	CG	VTYP	VTYP2	VTYP3	YEAR	VID_MY	VID_CYCLE	VID_COUNTY	PREPLTNO	REGPLTNO	REGEXPYR	REGEXPMO	OWNERNAME1	REG_MY	REG_ODO	REG_DATE	ADD_F	CITY_F	STATE_F	ZIP_F	REC_TYPE	COUNTYCODE	CENSUS_TRK	CENSUS_BLK	MONSBTWN2	MONTH	BLKGRP	ZIP5_F	DEN_ZIP	INC_ZIP	POP_ZIP	POP_BLK	INC_BLK	DEN_BLK"
 logger = logging.getLogger()
-logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
 header_dmv = "ADD_F BADVMT BLKGRP CENSUS_BLK CENSUS_TRK CG CITY_F COUNTYCODE DATEDIFF DEN_BLK DEN_ZIP INC_BLK INC_ZIP MAK2 MM2 MONSBTWN2 MONTH MY ODODIFF ODOMETER OWNERNAME1 POP_BLK POP_ZIP PREVDATE PREVODO REC_TYPE REG_DATE REG_MY REG_ODO REGEXPMO REGEXPYR REGPLTNO ST_TIME STATE_F VEHAGE VID_COUNTY VID_CYCLE VID_DATE VID_LICENSE VID_MY VIN VMT VMT1000 VMT10002 VMTCORR VMTGRP VTYP VTYP2 VTYP3 YEAR ZIP5_F".split()
 # print ("The number of columns in the raw dataset is %d " % len(header_dmv)) # 51
@@ -533,6 +533,10 @@ for year, household_dict in all_household_dicts.items():
             if vmt_curr == '.' or float(vmt_curr) <= 0:
                 continue
 
+            vmt_curr = float(vmt_curr)
+            while vmt_curr >= 30000:
+                vmt_curr /= 10
+
             # Reverse VIN
             vin_curr = dmv_record[header_dmv.index('VIN')]
 
@@ -559,7 +563,7 @@ for year, household_dict in all_household_dicts.items():
 
             # Now append effective data
             hh_name_curr.append(dmv_record[header_dmv.index('OWNERNAME1')])
-            hh_vmt_curr.append(float(vmt_curr))
+            hh_vmt_curr.append(vmt_curr)
             hh_veh_num += 1
             hh_vin_curr.append(vin_curr)
             hh_mpg_curr.append(mpg_curr)
